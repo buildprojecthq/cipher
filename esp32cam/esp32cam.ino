@@ -9,7 +9,7 @@
 // Configure these to match your root .env settings:
 // ==========================================
 const char* ssid = "Cipher_IoT_Net";        // Matches HOTSPOT_SSID in .env
-const char* password = "cipher2024";        // Matches HOTSPOT_PASSWORD in .env
+const char* password = "cipher2026";        // Matches HOTSPOT_PASSWORD in .env
 
 // Cloud C2 Server (matches CLOUD_C2_URL in .env)
 // Set this to your Cloud VM IP or host running ./attack.sh
