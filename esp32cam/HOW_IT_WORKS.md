@@ -1,5 +1,7 @@
 # How the ESP32-CAM Works (Simply Explained)
 
+![ESP32-CAM and Raspberry Pi Edge Gateway Setup](../images/4_hardware_setup.jpg)
+
 Think of the ESP32-CAM as a tiny, cheap computer with a built-in camera and Wi-Fi. In our project, it pretends to be a normal smart home device (like a smart doorbell or security camera), but it's actually a "swiss army knife" of malware that acts maliciously on command.
 
 Here is what it does step-by-step:

@@ -23,15 +23,19 @@
 
 ### 1. Defender Dashboard — Nominal Network State
 Real-time 3D cybernetic monitoring on the Raspberry Pi edge gateway. The network is nominal with an authenticated **ESP32-CAM** device connected (`10.42.0.151`, Threat Score `0/150`).
-![Defender Dashboard - Connected](screenshots/1_defend_dashboard_connected.png)
+![Defender Dashboard - Connected](images/1_defend_dashboard_connected.png)
 
 ### 2. Defender Dashboard — Attack Detection & Auto-Mitigation
 Under an active image exfiltration attack, the edge rule engine detects elevated bandwidth, raises a `CRITICAL — EXFIL DETECTED` alert, visualizes threat particles on the 3D globe, and automatically blocks the device via dynamic iptables firewall rules.
-![Defender Dashboard - Exfiltration Attack](screenshots/2_defend_dashboard_exfil_attack.png)
+![Defender Dashboard - Exfiltration Attack](images/2_defend_dashboard_exfil_attack.png)
 
 ### 3. Attacker Dashboard — Cloud C2 Exfiltration Feed
 The SHADOW Command & Control console manages attack triggers and renders live exfiltrated camera frames with real-time HUD telemetry (latency, frame sequencing, payload size, and audit logs).
-![Attacker Dashboard - Exfiltration Stream](screenshots/3_attack_dashboard_exfil.png)
+![Attacker Dashboard - Exfiltration Stream](images/3_attack_dashboard_exfil.png)
+
+### 4. Physical Hardware Testbed & Enclosure
+Bench-tested hardware prototype showcasing the **Raspberry Pi 3B+ Edge Gateway** (housed in a custom wooden enclosure with an active cooling fan, interface bus, and Ethernet uplink) alongside the weaponized **AI-Thinker ESP32-CAM** node.
+![Cipher Hardware Setup - Gateway & ESP32-CAM](images/4_hardware_setup.jpg)
 
 ---
 
@@ -46,7 +50,7 @@ The SHADOW Command & Control console manages attack triggers and renders live ex
 
 ## 🔌 Hardware Bill of Materials (BOM)
 
-Cipher is engineered for high-performance edge detection on affordable, university-friendly hardware (~₹6,730 total bench-tested BOM):
+Cipher is engineered for high-performance edge detection on affordable, university-friendly hardware (~₹6,730 total bench-tested BOM, as shown in the [Physical Hardware Testbed](#4-physical-hardware-testbed--enclosure)):
 
 | Component | Specification | Role | Approx Rate (INR) |
 | :--- | :--- | :--- | :--- |
