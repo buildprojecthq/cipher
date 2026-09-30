@@ -1,0 +1,13 @@
+[build]
+  command = "cd rpi_dashboard && npm install && npm run build"
+  publish = "rpi_dashboard/dist"
+
+[build.environment]
+  VITE_DEMO_MODE = "true"
+  NODE_VERSION    = "20"
+
+# SPA redirect — all routes → index.html
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
