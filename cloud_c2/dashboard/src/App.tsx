@@ -230,6 +230,12 @@ export default function App() {
                 {isConnected ? 'STABLE' : 'DROPPED'}
               </span>
             </div>
+            <div className="flex items-center gap-2 border-l border-white/10 pl-6 text-red-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-white/40">C2 ADVERSARY:</span>
+              <span className="text-red-400 font-bold">THE DALLES, US</span>
+              <span className="text-[8px] text-white/50">(35.212.229.239)</span>
+            </div>
           </div>
         </div>
       </header>

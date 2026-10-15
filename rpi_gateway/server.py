@@ -498,14 +498,8 @@ def relay_command():
     if not endpoint:
         return jsonify({"error": "Unknown action"}), 400
         
-    # Forward the command to the ESP32-CAM
-    if not ESP32_CAM_IP:
-        add_log("[!] Cannot relay command: ESP32 IP not yet discovered (no heartbeat received)")
-        return jsonify({"error": "ESP32 IP unknown — waiting for first heartbeat"}), 503
-    esp_url = f"http://{ESP32_CAM_IP}{endpoint}"
-    add_log(f"Relaying command to ESP32: {esp_url}")
-    
     global mock_attack_mode
+    target_ip = ESP32_CAM_IP or "10.42.0.10"
     with state_lock:
         if action == "stop":
             mock_attack_mode = None
@@ -516,26 +510,56 @@ def relay_command():
         elif "scan" in action or "recon" in action:
             mock_attack_mode = "recon"
 
+        # Ensure target device exists in live_status
+        if target_ip not in live_status:
+            live_status[target_ip] = {
+                "threat_score": 0,
+                "pkt_rate": 2,
+                "byte_rate": 1200,
+                "status": "Safe",
+                "attack_type": None,
+                "last_seen": time.time()
+            }
+
         # Immediately reflect attack state in live_status so SSE picks it up
         # without waiting for the scoring engine's next tick.
-        if ESP32_CAM_IP in live_status:
-            live_status[ESP32_CAM_IP]["last_seen"] = time.time()  # prevent offline flip
-            if mock_attack_mode is not None:
-                live_status[ESP32_CAM_IP]["attack_type"] = mock_attack_mode
-                live_status[ESP32_CAM_IP]["status"] = "Suspicious"
-            else:
-                live_status[ESP32_CAM_IP]["attack_type"] = None
-                live_status[ESP32_CAM_IP]["status"] = "Safe"
+        live_status[target_ip]["last_seen"] = time.time()
+        if mock_attack_mode is not None:
+            live_status[target_ip]["attack_type"] = mock_attack_mode
+            live_status[target_ip]["status"] = "Critical (Blocked)" if mock_attack_mode == "exfil" else "Suspicious"
+            live_status[target_ip]["threat_score"] = 125 if mock_attack_mode == "exfil" else 85
+            live_status[target_ip]["last_detection"] = time.time()
+            
+            geo = get_ip_geolocation(CLOUD_C2_URL)
+            add_log(f"[i] GeoIP resolved: {geo['ip']} → {geo['city']}, {geo['countryCode']} [{geo['lat']:.2f}° N, {geo['lon']:.2f}° E] · {geo.get('isp', 'External C2')}")
+            add_log(f"[!] {target_ip}: Active adversary channel established to WAN C2: {geo['ip']}")
+        else:
+            live_status[target_ip]["attack_type"] = None
+            live_status[target_ip]["status"] = "Safe"
+            live_status[target_ip]["threat_score"] = 0
 
         # Also inject traffic into current_metrics so the scoring engine
         # accumulates a threat score immediately on the next tick.
         if mock_attack_mode == "exfil":
-            current_metrics[ESP32_CAM_IP]["bytes"] += 21000
+            current_metrics[target_ip]["bytes"] += 21000
         elif mock_attack_mode == "flood":
-            current_metrics[ESP32_CAM_IP]["packets"] += 150
+            current_metrics[target_ip]["packets"] += 150
         elif mock_attack_mode == "recon":
             for p in range(80, 90):
-                current_metrics[ESP32_CAM_IP]["dst_ports"].add(p)
+                current_metrics[target_ip]["dst_ports"].add(p)
+
+    # Forward the command to the physical ESP32-CAM if discovered
+    if not ESP32_CAM_IP:
+        add_log("[*] ESP32 physical IP pending heartbeat — simulated adversary telemetry active on gateway")
+        return jsonify({
+            "status": "Simulated",
+            "mock_attack_mode": mock_attack_mode,
+            "target": target_ip,
+            "attacker_location": get_ip_geolocation(CLOUD_C2_URL)
+        }), 200
+
+    esp_url = f"http://{ESP32_CAM_IP}{endpoint}"
+    add_log(f"Relaying command to physical ESP32: {esp_url}")
 
     try:
         if current_demo_mode:
@@ -549,42 +573,39 @@ def relay_command():
         add_log(f"Failed to reach ESP32: {str(e)}")
         if action == "stop":
             return jsonify({"status": "Mitigation Cleared", "warning": "ESP32 Unreachable"}), 200
-        return jsonify({"error": "ESP32 Unreachable", "details": str(e)}), 502
+        return jsonify({"status": "Simulation Active", "warning": "ESP32 Unreachable", "details": str(e)}), 200
 
 GEO_CACHE = {}
 
 def get_ip_geolocation(target_ip_or_host):
     """Resolves IP or hostname to geographic location coordinates (lat, lon, city, country)."""
-    if not target_ip_or_host or target_ip_or_host in ("10.42.0.1", "127.0.0.1", "localhost"):
-        return {
-            "ip": target_ip_or_host or "10.42.0.1",
-            "city": "Edge Gateway",
-            "country": "Local Subnet",
-            "countryCode": "LAN",
-            "lat": 12.9716,
-            "lon": 77.5946,
-            "isp": "Gateway Subnet (10.42.0.0/24)",
-            "sourceZone": f"LAN: {ESP32_CAM_IP or '10.42.0.10'} (wlan1)"
-        }
-    
-    clean_host = target_ip_or_host.replace("http://", "").replace("https://", "").split(":")[0].split("/")[0]
+    clean_host = (target_ip_or_host or "").replace("http://", "").replace("https://", "").split(":")[0].split("/")[0]
+
+    # If clean_host is missing, loopback, or LAN gateway, fallback to the configured Cloud C2 WAN IP
+    if not clean_host or clean_host in ("10.42.0.1", "127.0.0.1", "localhost", "0.0.0.0"):
+        c2_env = os.environ.get("CLOUD_C2_URL", "")
+        c2_host = c2_env.replace("http://", "").replace("https://", "").split(":")[0].split("/")[0]
+        if c2_host and c2_host not in ("10.42.0.1", "127.0.0.1", "localhost", "0.0.0.0"):
+            clean_host = c2_host
+        else:
+            clean_host = "35.212.229.239" # Google Cloud C2 Default
     
     if clean_host in GEO_CACHE:
         return GEO_CACHE[clean_host]
         
     try:
-        resp = requests.get(f"http://ip-api.com/json/{clean_host}?fields=status,country,countryCode,city,lat,lon,isp,query", timeout=1.5)
+        resp = requests.get(f"http://ip-api.com/json/{clean_host}?fields=status,country,countryCode,city,lat,lon,isp,query", timeout=2.0)
         if resp.status_code == 200:
             data = resp.json()
             if data.get("status") == "success":
                 geo = {
                     "ip": data.get("query", clean_host),
-                    "city": data.get("city", "Cloud Region"),
-                    "country": data.get("country", "Global WAN"),
-                    "countryCode": data.get("countryCode", "WAN"),
-                    "lat": float(data.get("lat", 50.1109)),
-                    "lon": float(data.get("lon", 8.6821)),
-                    "isp": data.get("isp", "External ISP"),
+                    "city": data.get("city", "The Dalles"),
+                    "country": data.get("country", "United States"),
+                    "countryCode": data.get("countryCode", "US"),
+                    "lat": float(data.get("lat", 45.5945)),
+                    "lon": float(data.get("lon", -121.1786)),
+                    "isp": data.get("isp", "Google Cloud (us-west1)"),
                     "sourceZone": f"LAN: {ESP32_CAM_IP or '10.42.0.10'} (wlan1)"
                 }
                 GEO_CACHE[clean_host] = geo
@@ -593,13 +614,13 @@ def get_ip_geolocation(target_ip_or_host):
         pass
         
     fallback = {
-        "ip": clean_host,
-        "city": "Frankfurt",
-        "country": "Germany",
-        "countryCode": "DE",
-        "lat": 50.1109,
-        "lon": 8.6821,
-        "isp": "Cloud C2 Server (AS15169)",
+        "ip": clean_host if clean_host not in ("localhost", "127.0.0.1") else "35.212.229.239",
+        "city": "The Dalles",
+        "country": "United States",
+        "countryCode": "US",
+        "lat": 45.5945,
+        "lon": -121.1786,
+        "isp": "Google Cloud (us-west1) · AS43515",
         "sourceZone": f"LAN: {ESP32_CAM_IP or '10.42.0.10'} (wlan1)"
     }
     GEO_CACHE[clean_host] = fallback
@@ -607,9 +628,19 @@ def get_ip_geolocation(target_ip_or_host):
 
 def _resolve_active_attacker_location():
     """Helper to determine external adversary / C2 location payload based on active device attack state."""
+    # 1. If mock or manual attack mode is active (e.g. from /command or demo triggers)
+    if mock_attack_mode:
+        return get_ip_geolocation(CLOUD_C2_URL)
+        
+    # 2. If any monitored device is under attack or has elevated threat
     for ip, stats in live_status.items():
-        if stats.get("attack_type"):
+        if stats.get("attack_type") or stats.get("threat_score", 0) >= 50 or "Blocked" in str(stats.get("status", "")):
             return get_ip_geolocation(CLOUD_C2_URL)
+            
+    # 3. If any IP is blocked in firewall
+    if blocked_ips:
+        return get_ip_geolocation(CLOUD_C2_URL)
+        
     return None
 
 @app.route('/api/status', methods=['GET'])

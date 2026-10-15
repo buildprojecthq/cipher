@@ -20,13 +20,13 @@ export type { NetworkNode, LogEntry, MetricData, BackendHook, AttackerLocation }
 
 export const ATTACK_LOCATIONS: Record<AttackType, AttackerLocation> = {
   exfil: {
-    ip: '34.120.45.12',
-    city: 'Frankfurt',
-    country: 'Germany',
-    countryCode: 'DE',
-    lat: 50.1109,
-    lon: 8.6821,
-    isp: 'Google Cloud (AS15169)'
+    ip: '35.212.229.239',
+    city: 'The Dalles',
+    country: 'United States',
+    countryCode: 'US',
+    lat: 45.5945,
+    lon: -121.1786,
+    isp: 'Google Cloud (us-west1) · AS43515'
   },
   recon: {
     ip: '185.220.101.5',
@@ -92,8 +92,8 @@ interface LogScript { ms: number; msg: string; level: LogEntry['level'] }
 
 const SCRIPTS: Record<AttackType, LogScript[]> = {
   exfil: [
-    { ms:    0, msg: '[!] ALERT: Anomalous outbound traffic from ESP32-CAM (34.120.45.12:443)',            level: 'critical'    },
-    { ms:  200, msg: '[i] GeoIP resolved: 34.120.45.12 → Frankfurt, DE [50.11° N, 8.68° E] · AS15169',      level: 'warning'     },
+    { ms:    0, msg: '[!] ALERT: Anomalous outbound traffic from ESP32-CAM (35.212.229.239:5000)',            level: 'critical'    },
+    { ms:  200, msg: '[i] GeoIP resolved: 35.212.229.239 → The Dalles, US [45.59° N, -121.18° W] · AS43515',   level: 'warning'     },
     { ms:  400, msg: '[!] EXFIL: Large payload burst — 1.2 MB in 3 s (threshold: 200 KB/s)',             level: 'critical'    },
     { ms:  900, msg: '[i] Entropy spike detected — data may be encrypted/compressed',                    level: 'warning'     },
     { ms: 1500, msg: '[i] Rule EXFIL_01 triggered: byte_rate > 200 KB/s for 3 consecutive windows',      level: 'warning'     },

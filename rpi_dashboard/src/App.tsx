@@ -20,6 +20,7 @@ import {
 import { cn } from './lib/utils';
 import { useBackend } from './lib/useBackend';
 import { useDemoBackend } from './lib/mockBackend';
+import { DEFAULT_C2_LOCATION } from './lib/types';
 
 const IS_DEMO = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -109,8 +110,9 @@ export default function App() {
     [selectedNode, nodes]);
 
   const attackerNode = useMemo(() => nodes.find(n => n.isUnderAttack), [nodes]);
-  const isUnderAttack = !!attackerNode;
-  const activeAttackType = attackerNode?.attackType ?? null;
+  const isUnderAttack = !!attackerNode || !!activeAttack;
+  const activeAttackType = attackerNode?.attackType ?? activeAttack ?? null;
+  const effectiveAttackerLocation = attackerLocation || (isUnderAttack ? DEFAULT_C2_LOCATION : null);
 
   const maxThreatScore = useMemo(() => {
     if (nodes.length === 0) return 0;
@@ -153,7 +155,7 @@ export default function App() {
             <pointLight position={[-10, 5, -10]} intensity={0.5} color={'#ffffff'} />
             <Suspense fallback={null}>
               <group ref={groupRef}>
-                <Globe targetLocation={attackerLocation} />
+                <Globe targetLocation={effectiveAttackerLocation} />
                 {attackerNode && <ThreatSignal position={attackerNode.pos} active={isUnderAttack} />}
                 {attackerNode && <AttackParticles from={attackerNode.pos} active={isUnderAttack && protectionEnabled} attackType={activeAttackType} />}
                 <PacketFlow active={!protectionEnabled} />
@@ -195,7 +197,7 @@ export default function App() {
 
             {/* Attacker Location Telemetry Sub-Badge (External Adversary / C2) */}
             <AnimatePresence>
-              {isUnderAttack && attackerLocation && (
+              {isUnderAttack && effectiveAttackerLocation && (
                 <motion.div
                   initial={{ opacity: 0, y: -6, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -206,17 +208,17 @@ export default function App() {
                   <MapPin size={11} className="text-red-400 shrink-0 animate-pulse" />
                   <span className="text-red-400 font-black">ATTACKER LOCATION:</span>
                   <span className="text-white font-bold tracking-tight">
-                    {attackerLocation.city}, {attackerLocation.country}
+                    {effectiveAttackerLocation.city}, {effectiveAttackerLocation.country}
                   </span>
                   <span className="text-red-400/90 font-mono text-[8px]">
-                    ({attackerLocation.lat.toFixed(2)}°N, {attackerLocation.lon.toFixed(2)}°E)
+                    ({effectiveAttackerLocation.lat.toFixed(2)}°N, {effectiveAttackerLocation.lon.toFixed(2)}°E)
                   </span>
                   <span className="hidden sm:inline text-white/50 border-l border-white/20 pl-2 text-[8px]">
-                    IP: {attackerLocation.ip}
+                    IP: {effectiveAttackerLocation.ip}
                   </span>
-                  {attackerLocation.isp && (
+                  {effectiveAttackerLocation.isp && (
                     <span className="hidden md:inline text-white/35 border-l border-white/20 pl-2 text-[8px]">
-                      {attackerLocation.isp}
+                      {effectiveAttackerLocation.isp}
                     </span>
                   )}
                 </motion.div>
@@ -320,25 +322,25 @@ export default function App() {
                         <div className="flex justify-between text-white/70">
                           <span>Attacker Region:</span>
                           <span className={activeNodeData?.isUnderAttack ? "text-red-400 font-bold" : "text-white/40"}>
-                            {activeNodeData?.isUnderAttack && attackerLocation 
-                              ? `${attackerLocation.city}, ${attackerLocation.country}` 
+                            {activeNodeData?.isUnderAttack && effectiveAttackerLocation 
+                              ? `${effectiveAttackerLocation.city}, ${effectiveAttackerLocation.country}` 
                               : 'None (Nominal)'}
                           </span>
                         </div>
-                        {activeNodeData?.isUnderAttack && attackerLocation && (
+                        {activeNodeData?.isUnderAttack && effectiveAttackerLocation && (
                           <>
                             <div className="flex justify-between text-white/70">
                               <span>Attacker IP:</span>
-                              <span className="text-white font-bold">{attackerLocation.ip}</span>
+                              <span className="text-white font-bold">{effectiveAttackerLocation.ip}</span>
                             </div>
                             <div className="flex justify-between text-white/50 text-[8px]">
                               <span>Coordinates:</span>
-                              <span>{attackerLocation.lat.toFixed(2)}°N, {attackerLocation.lon.toFixed(2)}°E</span>
+                              <span>{effectiveAttackerLocation.lat.toFixed(2)}°N, {effectiveAttackerLocation.lon.toFixed(2)}°E</span>
                             </div>
-                            {attackerLocation.isp && (
+                            {effectiveAttackerLocation.isp && (
                               <div className="flex justify-between text-white/40 text-[8px]">
                                 <span>Network / Host:</span>
-                                <span>{attackerLocation.isp}</span>
+                                <span>{effectiveAttackerLocation.isp}</span>
                               </div>
                             )}
                           </>

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 // Re-export shared types so other modules can import from here
 export type { NetworkNode, LogEntry, BackendHook, AttackerLocation } from './types';
-import type { NetworkNode, LogEntry, AttackerLocation } from './types';
+import { type NetworkNode, type LogEntry, type AttackerLocation, DEFAULT_C2_LOCATION } from './types';
 
 // --------------------------------------------------------
 // HELPER: Generate random position for new nodes
@@ -118,7 +118,7 @@ export function useBackend() {
           setAttackerLocation(attacker_location);
         } else {
           const hasActiveAttack = Object.values(devices).some((d: any) => !!d.attack_type);
-          if (!hasActiveAttack) {
+          if (!hasActiveAttack && !activeAttack) {
             setAttackerLocation(null);
           }
         }
@@ -232,17 +232,70 @@ export function useBackend() {
   }, [protectionEnabled]);
 
   const sendCommand = useCallback(async (action: string) => {
+    const attackType: 'exfil' | 'recon' | 'flood' | null = 
+      action.includes('exfil') ? 'exfil' :
+      (action.includes('ddos') || action.includes('flood')) ? 'flood' :
+      (action.includes('scan') || action.includes('recon')) ? 'recon' :
+      null;
+
+    if (action === 'stop' || !attackType) {
+      setActiveAttack(null);
+      setAttackerLocation(null);
+      setNodes(prev => prev.map(n => ({
+        ...n,
+        isUnderAttack: false,
+        attackType: null,
+        trustScore: 0.95,
+        attackerLocation: null
+      })));
+      addLog('[i] Threat engine: attack stopped, network status nominal', 'info');
+    } else {
+      setActiveAttack(attackType);
+      setAttackerLocation(DEFAULT_C2_LOCATION);
+      setNodes(prev => {
+        const hasCamera = prev.some(n => n.type === 'camera' || n.label.includes('ESP32'));
+        if (hasCamera) {
+          return prev.map(n => 
+            (n.type === 'camera' || n.label.includes('ESP32'))
+              ? {
+                  ...n,
+                  isUnderAttack: true,
+                  attackType,
+                  trustScore: 0.2,
+                  attackerLocation: DEFAULT_C2_LOCATION
+                }
+              : n
+          );
+        } else if (prev.length > 0) {
+          return prev.map((n, i) => i === 0 ? {
+            ...n,
+            isUnderAttack: true,
+            attackType,
+            trustScore: 0.2,
+            attackerLocation: DEFAULT_C2_LOCATION
+          } : n);
+        }
+        return prev;
+      });
+
+      addLog(`[!] ALERT: Anomalous outbound ${attackType.toUpperCase()} traffic directed to C2 (${DEFAULT_C2_LOCATION.ip})`, 'critical');
+      addLog(`[i] GeoIP resolved: ${DEFAULT_C2_LOCATION.ip} → ${DEFAULT_C2_LOCATION.city}, ${DEFAULT_C2_LOCATION.countryCode} [${DEFAULT_C2_LOCATION.lat.toFixed(2)}° N, ${DEFAULT_C2_LOCATION.lon.toFixed(2)}° E] · ${DEFAULT_C2_LOCATION.isp}`, 'warning');
+    }
+
     try {
-      await fetch(`${API_BASE}/command`, {
+      const resp = await fetch(`${API_BASE}/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target: "esp32cam", action })
       });
-      setActiveAttack(action === 'stop' ? null : action as any);
+      const data = await resp.json();
+      if (data.attacker_location) {
+        setAttackerLocation(data.attacker_location);
+      }
     } catch (e) {
-      console.error("Failed to send command", e);
+      console.warn("Command relay notice (optimistic simulation maintained):", e);
     }
-  }, []);
+  }, [addLog]);
 
   return {
     nodes,

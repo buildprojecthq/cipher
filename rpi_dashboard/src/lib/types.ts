@@ -12,6 +12,16 @@ export interface AttackerLocation {
   sourceZone?: string;
 }
 
+export const DEFAULT_C2_LOCATION: AttackerLocation = {
+  ip: '35.212.229.239',
+  city: 'The Dalles',
+  country: 'United States',
+  countryCode: 'US',
+  lat: 45.5945,
+  lon: -121.1786,
+  isp: 'Google Cloud (us-west1) · AS43515'
+};
+
 export interface NetworkNode {
   id: string;
   type: DeviceType;
