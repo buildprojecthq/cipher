@@ -1,6 +1,17 @@
 import * as THREE from 'three';
 import { DeviceType } from '../components/DeviceNode';
 
+export interface AttackerLocation {
+  ip: string;
+  city: string;
+  country: string;
+  countryCode: string;
+  lat: number;
+  lon: number;
+  isp?: string;
+  sourceZone?: string;
+}
+
 export interface NetworkNode {
   id: string;
   type: DeviceType;
@@ -13,6 +24,7 @@ export interface NetworkNode {
   isUnderAttack?: boolean;
   attackType?: 'exfil' | 'recon' | 'flood' | null;
   status?: string;
+  attackerLocation?: AttackerLocation | null;
 }
 
 export interface MetricData {
@@ -36,6 +48,7 @@ export interface BackendHook {
   toggleProtection: () => void;
   isToggling: boolean;
   clearLogs: () => void;
+  attackerLocation?: AttackerLocation | null;
   // Demo-only (optional so real backend doesn't need them)
   activeAttack?: 'exfil' | 'recon' | 'flood' | null;
   triggerExfil?: () => void;
@@ -44,3 +57,4 @@ export interface BackendHook {
   stopAttacks?: () => void;
   isDemoMode?: boolean;
 }
+

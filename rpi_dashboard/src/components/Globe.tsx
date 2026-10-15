@@ -1,10 +1,11 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Sphere } from '@react-three/drei';
 import * as THREE from 'three';
+import type { AttackerLocation } from '../lib/types';
 
 // Technical world map projection to create dotted continents
-export const Globe: React.FC = () => {
+export const Globe: React.FC<{ targetLocation?: AttackerLocation | null }> = ({ targetLocation }) => {
   const globeRef = useRef<THREE.Group>(null);
   
   useFrame((state) => {
@@ -24,6 +25,11 @@ export const Globe: React.FC = () => {
       {/* Cybertech Geography Shell */}
       <WorldDotMap radius={2.05} />
 
+      {/* Target Location Beacon (when under active attack) */}
+      {targetLocation && (
+        <TargetBeacon location={targetLocation} radius={2.05} />
+      )}
+
       {/* Equator Ring */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[2.15, 0.003, 8, 128]} />
@@ -33,6 +39,63 @@ export const Globe: React.FC = () => {
           opacity={0.3} 
           blending={THREE.AdditiveBlending} 
         />
+      </mesh>
+    </group>
+  );
+};
+
+const TargetBeacon: React.FC<{ location: AttackerLocation; radius: number }> = ({ location, radius }) => {
+  const ringRef = useRef<THREE.Mesh>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+
+  const pos = useMemo(() => {
+    const lat = location.lat;
+    const lon = location.lon;
+    const phi = (90 - lat) * (Math.PI / 180);
+    const theta = (lon + 180) * (Math.PI / 180);
+    return new THREE.Vector3(
+      -radius * Math.sin(phi) * Math.cos(theta),
+      radius * Math.cos(phi),
+      radius * Math.sin(phi) * Math.sin(theta)
+    );
+  }, [location.lat, location.lon, radius]);
+
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
+    const ripple = (t * 1.5) % 1;
+    if (ringRef.current) {
+      ringRef.current.scale.setScalar(0.4 + ripple * 2.2);
+      (ringRef.current.material as THREE.MeshBasicMaterial).opacity = (1 - ripple) * 0.85;
+    }
+    if (coreRef.current) {
+      const pulse = 0.7 + 0.3 * Math.sin(t * 8);
+      (coreRef.current.material as THREE.MeshBasicMaterial).opacity = pulse;
+    }
+  });
+
+  const quaternion = useMemo(() => {
+    const normal = pos.clone().normalize();
+    const q = new THREE.Quaternion();
+    q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+    return q;
+  }, [pos]);
+
+  return (
+    <group position={pos} quaternion={quaternion}>
+      {/* Outer pulsing ping ring */}
+      <mesh ref={ringRef}>
+        <ringGeometry args={[0.035, 0.055, 32]} />
+        <meshBasicMaterial color="#ff2222" transparent opacity={0.8} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+      </mesh>
+      {/* Center glowing core */}
+      <mesh ref={coreRef} position={[0, 0, 0.005]}>
+        <circleGeometry args={[0.03, 16]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.9} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Indicator stalk extending from surface */}
+      <mesh position={[0, 0, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.004, 0.004, 0.12, 8]} />
+        <meshBasicMaterial color="#ff3333" transparent opacity={0.8} />
       </mesh>
     </group>
   );

@@ -9,10 +9,44 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { DeviceType } from '../components/DeviceNode';
-import type { NetworkNode, LogEntry, MetricData, BackendHook } from './types';
+import type { NetworkNode, LogEntry, MetricData, BackendHook, AttackerLocation } from './types';
 
 // Re-export types for components that import from here directly (e.g. LogsPanel)
-export type { NetworkNode, LogEntry, MetricData, BackendHook };
+export type { NetworkNode, LogEntry, MetricData, BackendHook, AttackerLocation };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATTACK GEOLOCATIONS & TARGETS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const ATTACK_LOCATIONS: Record<AttackType, AttackerLocation> = {
+  exfil: {
+    ip: '34.120.45.12',
+    city: 'Frankfurt',
+    country: 'Germany',
+    countryCode: 'DE',
+    lat: 50.1109,
+    lon: 8.6821,
+    isp: 'Google Cloud (AS15169)'
+  },
+  recon: {
+    ip: '185.220.101.5',
+    city: 'Amsterdam',
+    country: 'Netherlands',
+    countryCode: 'NL',
+    lat: 52.3676,
+    lon: 4.9041,
+    isp: 'External C2 Scanner'
+  },
+  flood: {
+    ip: '198.51.100.44',
+    city: 'Ashburn',
+    country: 'United States',
+    countryCode: 'US',
+    lat: 39.0438,
+    lon: -77.4874,
+    isp: 'Botnet Master C2'
+  }
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INITIAL TOPOLOGY (deterministic for demo)
@@ -58,7 +92,8 @@ interface LogScript { ms: number; msg: string; level: LogEntry['level'] }
 
 const SCRIPTS: Record<AttackType, LogScript[]> = {
   exfil: [
-    { ms:    0, msg: '[!] ALERT: Anomalous outbound traffic from ESP32-CAM (34.120.x.x:443)',             level: 'critical'    },
+    { ms:    0, msg: '[!] ALERT: Anomalous outbound traffic from ESP32-CAM (34.120.45.12:443)',            level: 'critical'    },
+    { ms:  200, msg: '[i] GeoIP resolved: 34.120.45.12 → Frankfurt, DE [50.11° N, 8.68° E] · AS15169',      level: 'warning'     },
     { ms:  400, msg: '[!] EXFIL: Large payload burst — 1.2 MB in 3 s (threshold: 200 KB/s)',             level: 'critical'    },
     { ms:  900, msg: '[i] Entropy spike detected — data may be encrypted/compressed',                    level: 'warning'     },
     { ms: 1500, msg: '[i] Rule EXFIL_01 triggered: byte_rate > 200 KB/s for 3 consecutive windows',      level: 'warning'     },
@@ -71,6 +106,7 @@ const SCRIPTS: Record<AttackType, LogScript[]> = {
   ],
   recon: [
     { ms:    0, msg: '[!] ALERT: Port scan detected from ESP32-CAM (10.42.0.10)',                        level: 'critical'    },
+    { ms:  150, msg: '[i] GeoIP resolved: 185.220.101.5 → Amsterdam, NL [52.37° N, 4.90° E] · Recon C2', level: 'warning'     },
     { ms:  300, msg: '[!] RECON: SYN sweep — 512 half-open connections in 4 s',                          level: 'critical'    },
     { ms:  700, msg: '[i] Rule RECON_01 triggered: dst_port_diversity > 50 unique ports/s',              level: 'warning'     },
     { ms: 1200, msg: '[!] Probing services: 22/SSH, 80/HTTP, 443/HTTPS, 3306/MySQL, 5432/PG',           level: 'critical'    },
@@ -81,8 +117,9 @@ const SCRIPTS: Record<AttackType, LogScript[]> = {
     { ms: 5500, msg: '[i] Threat score decaying… restoring device trust.',                               level: 'info'        },
   ],
   flood: [
-    { ms:    0, msg: '[!] ALERT: UDP flood originating from ESP32-CAM',                                   level: 'critical'    },
-    { ms:  200, msg: '[!] FLOOD: 4 200 pkts/s — gateway CPU at 91%',                                     level: 'critical'    },
+    { ms:    0, msg: '[!] ALERT: UDP flood command issued to ESP32-CAM',                                  level: 'critical'    },
+    { ms:  150, msg: '[i] GeoIP resolved: 198.51.100.44 → Ashburn, US [39.04° N, -77.49° W] · Mirai C2',  level: 'warning'     },
+    { ms:  300, msg: '[!] FLOOD: 4 200 pkts/s — gateway CPU at 91%',                                     level: 'critical'    },
     { ms:  600, msg: '[i] Rule FLOOD_01 triggered: pkt_rate > 2 000 pkts/s for 2 s',                     level: 'warning'     },
     { ms: 1100, msg: '[!] DDoS target: 10.42.0.1:53 (DNS amplification pattern)',                        level: 'critical'    },
     { ms: 1700, msg: '[!] Threat score → 148 / 150 — CRITICAL',                                          level: 'critical'    },
@@ -119,6 +156,7 @@ export function useDemoBackend(): BackendHook {
   const [protectionEnabled, setProtectionEnabled] = useState(true);
   const [isToggling, setIsToggling]               = useState(false);
   const [activeAttack, setActiveAttack]           = useState<AttackType | null>(null);
+  const [attackerLocation, setAttackerLocation]   = useState<AttackerLocation | null>(null);
 
   const attackTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const mitigationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -143,14 +181,20 @@ export function useDemoBackend(): BackendHook {
   const markAttack = useCallback((type: AttackType | null, score: number) => {
     setNodes(prev => prev.map(n =>
       n.id === 'esp32'
-        ? { ...n, isUnderAttack: !!type, attackType: type, trustScore: Math.max(0.05, 1 - score / 150) }
+        ? {
+            ...n,
+            isUnderAttack: !!type,
+            attackType: type,
+            trustScore: Math.max(0.05, 1 - score / 150),
+            attackerLocation: type ? ATTACK_LOCATIONS[type] : null
+          }
         : n
     ));
   }, []);
 
   /** Reset all nodes to a safe state */
   const resetNodes = useCallback(() => {
-    setNodes(INITIAL_NODES.map(n => ({ ...n })));
+    setNodes(INITIAL_NODES.map(n => ({ ...n, attackerLocation: null })));
   }, []);
 
   // ── boot sequence ─────────────────────────────────────────────────────────
@@ -166,6 +210,7 @@ export function useDemoBackend(): BackendHook {
   const launchAttack = useCallback((type: AttackType) => {
     clearAllTimers();
     setActiveAttack(type);
+    setAttackerLocation(ATTACK_LOCATIONS[type]);
 
     // Immediately mark ESP32 as under attack
     markAttack(type, 60);
@@ -190,6 +235,7 @@ export function useDemoBackend(): BackendHook {
     mitigationTimer.current = setTimeout(() => {
       addLog('[M] AUTO-MITIGATION: Gateway threat engine fired. Device isolated.', 'mitigation');
       setActiveAttack(null);
+      setAttackerLocation(null);
       // Gradually restore trust
       const decay = [120, 80, 50, 20, 0];
       decay.forEach((score, i) => {
@@ -204,6 +250,7 @@ export function useDemoBackend(): BackendHook {
   const stopAttacks = useCallback(() => {
     clearAllTimers();
     setActiveAttack(null);
+    setAttackerLocation(null);
     addLog('COMMAND: Stop All Attacks. Returning to normal operations.', 'mitigation');
     resetNodes();
   }, [addLog, clearAllTimers, resetNodes]);
@@ -236,6 +283,7 @@ export function useDemoBackend(): BackendHook {
     toggleProtection,
     isToggling,
     clearLogs,
+    attackerLocation,
     // demo extras
     activeAttack,
     triggerExfil:  () => launchAttack('exfil'),

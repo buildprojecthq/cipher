@@ -15,7 +15,7 @@ import { LogsPanel } from './components/LogsPanel';
 import { DemoPanel } from './components/DemoPanel';
 import {
   Monitor, Shield, X, Globe as GlobeIcon,
-  Terminal, Radio
+  Terminal, Radio, MapPin
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { useBackend } from './lib/useBackend';
@@ -101,6 +101,7 @@ export default function App() {
     triggerExfil,
     stopAttacks,
     isDemoMode,
+    attackerLocation,
   } = backend;
 
   const activeNodeData = useMemo(() =>
@@ -152,7 +153,7 @@ export default function App() {
             <pointLight position={[-10, 5, -10]} intensity={0.5} color={'#ffffff'} />
             <Suspense fallback={null}>
               <group ref={groupRef}>
-                <Globe />
+                <Globe targetLocation={attackerLocation} />
                 {attackerNode && <ThreatSignal position={attackerNode.pos} active={isUnderAttack} />}
                 {attackerNode && <AttackParticles from={attackerNode.pos} active={isUnderAttack && protectionEnabled} attackType={activeAttackType} />}
                 <PacketFlow active={!protectionEnabled} />
@@ -191,6 +192,36 @@ export default function App() {
                 <span>{alertTier === 'critical' ? 'CRITICAL' : 'WARNING'} — {activeAttackType?.toUpperCase() || 'ACTIVE THREAT'} DETECTED</span>
               ) : protectionEnabled ? "NETWORK NOMINAL — ALL SECURE" : "WARNING — GATEWAY DISABLED"}
             </div>
+
+            {/* Attacker Location Telemetry Sub-Badge (External Adversary / C2) */}
+            <AnimatePresence>
+              {isUnderAttack && attackerLocation && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute left-1/2 -translate-x-1/2 top-48 md:top-20 z-50 flex items-center gap-2 px-3.5 py-1.5 bg-black/90 backdrop-blur-md border border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.3)] font-mono text-[8px] md:text-[10px] tracking-wider uppercase whitespace-nowrap pointer-events-auto"
+                >
+                  <MapPin size={11} className="text-red-400 shrink-0 animate-pulse" />
+                  <span className="text-red-400 font-black">ATTACKER LOCATION:</span>
+                  <span className="text-white font-bold tracking-tight">
+                    {attackerLocation.city}, {attackerLocation.country}
+                  </span>
+                  <span className="text-red-400/90 font-mono text-[8px]">
+                    ({attackerLocation.lat.toFixed(2)}°N, {attackerLocation.lon.toFixed(2)}°E)
+                  </span>
+                  <span className="hidden sm:inline text-white/50 border-l border-white/20 pl-2 text-[8px]">
+                    IP: {attackerLocation.ip}
+                  </span>
+                  {attackerLocation.isp && (
+                    <span className="hidden md:inline text-white/35 border-l border-white/20 pl-2 text-[8px]">
+                      {attackerLocation.isp}
+                    </span>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Controls */}
             <div className="flex gap-2 pointer-events-auto z-50 flex-wrap">
@@ -234,6 +265,14 @@ export default function App() {
                           </div>
                           <div className="w-full bg-white/10 h-[2px]"><motion.div animate={{ width: `${Math.min(score / 150, 1) * 100}%` }} transition={{ duration: 0.3 }} className={cn("h-full", isBlocked ? "bg-red-500" : level.bar)} /></div>
                           <div className="flex justify-between text-[8px] font-mono font-bold uppercase tracking-tighter"><span className="opacity-60 text-white/70">{node.ip}</span><span className="opacity-40">Score: {score}/150</span></div>
+                          {node.isUnderAttack && attackerLocation && (
+                            <div className="flex items-center justify-between text-[7px] font-mono text-red-400 bg-red-500/10 px-1.5 py-0.5 border border-red-500/30">
+                              <span className="flex items-center gap-1 font-bold">
+                                <MapPin size={7} /> TARGET: {attackerLocation.city}, {attackerLocation.countryCode}
+                              </span>
+                              <span className="opacity-75">{attackerLocation.ip}</span>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -274,6 +313,38 @@ export default function App() {
                         <span className="text-[11px] font-bold uppercase tracking-widest text-white">{`Trust: ${(activeNodeData?.trustScore! * 100).toFixed(0)}%`}</span>
                       </div>
                     </section>
+
+                    <section>
+                      <p className="text-[9px] uppercase font-bold text-white/40 tracking-[0.2em] mb-2">Attacker Geolocation (C2)</p>
+                      <div className="p-3 bg-white/5 border border-white/10 font-mono text-[9px] space-y-1.5">
+                        <div className="flex justify-between text-white/70">
+                          <span>Attacker Region:</span>
+                          <span className={activeNodeData?.isUnderAttack ? "text-red-400 font-bold" : "text-white/40"}>
+                            {activeNodeData?.isUnderAttack && attackerLocation 
+                              ? `${attackerLocation.city}, ${attackerLocation.country}` 
+                              : 'None (Nominal)'}
+                          </span>
+                        </div>
+                        {activeNodeData?.isUnderAttack && attackerLocation && (
+                          <>
+                            <div className="flex justify-between text-white/70">
+                              <span>Attacker IP:</span>
+                              <span className="text-white font-bold">{attackerLocation.ip}</span>
+                            </div>
+                            <div className="flex justify-between text-white/50 text-[8px]">
+                              <span>Coordinates:</span>
+                              <span>{attackerLocation.lat.toFixed(2)}°N, {attackerLocation.lon.toFixed(2)}°E</span>
+                            </div>
+                            {attackerLocation.isp && (
+                              <div className="flex justify-between text-white/40 text-[8px]">
+                                <span>Network / Host:</span>
+                                <span>{attackerLocation.isp}</span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </section>
                     <button className="w-full py-3 bg-white text-black font-black text-[10px] uppercase tracking-[0.4em] hover:bg-gray-200 transition-all active:scale-95">Initialize Sync</button>
                   </div>
                 </div>
@@ -308,6 +379,11 @@ export default function App() {
               )}>
                 Gateway: {isUnderAttack ? "BREACH DETECTED" : (protectionEnabled ? "Secure" : "Exposed")}
               </span>
+              {isUnderAttack && attackerLocation && (
+                <span className="text-red-400/90 text-[8px] flex items-center gap-1 font-bold">
+                  <MapPin size={8} /> Attacker Location: {attackerLocation.city}, {attackerLocation.country} ({attackerLocation.ip})
+                </span>
+              )}
             </div>
           </div>
         </div>

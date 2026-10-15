@@ -551,6 +551,67 @@ def relay_command():
             return jsonify({"status": "Mitigation Cleared", "warning": "ESP32 Unreachable"}), 200
         return jsonify({"error": "ESP32 Unreachable", "details": str(e)}), 502
 
+GEO_CACHE = {}
+
+def get_ip_geolocation(target_ip_or_host):
+    """Resolves IP or hostname to geographic location coordinates (lat, lon, city, country)."""
+    if not target_ip_or_host or target_ip_or_host in ("10.42.0.1", "127.0.0.1", "localhost"):
+        return {
+            "ip": target_ip_or_host or "10.42.0.1",
+            "city": "Edge Gateway",
+            "country": "Local Subnet",
+            "countryCode": "LAN",
+            "lat": 12.9716,
+            "lon": 77.5946,
+            "isp": "Gateway Subnet (10.42.0.0/24)",
+            "sourceZone": f"LAN: {ESP32_CAM_IP or '10.42.0.10'} (wlan1)"
+        }
+    
+    clean_host = target_ip_or_host.replace("http://", "").replace("https://", "").split(":")[0].split("/")[0]
+    
+    if clean_host in GEO_CACHE:
+        return GEO_CACHE[clean_host]
+        
+    try:
+        resp = requests.get(f"http://ip-api.com/json/{clean_host}?fields=status,country,countryCode,city,lat,lon,isp,query", timeout=1.5)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("status") == "success":
+                geo = {
+                    "ip": data.get("query", clean_host),
+                    "city": data.get("city", "Cloud Region"),
+                    "country": data.get("country", "Global WAN"),
+                    "countryCode": data.get("countryCode", "WAN"),
+                    "lat": float(data.get("lat", 50.1109)),
+                    "lon": float(data.get("lon", 8.6821)),
+                    "isp": data.get("isp", "External ISP"),
+                    "sourceZone": f"LAN: {ESP32_CAM_IP or '10.42.0.10'} (wlan1)"
+                }
+                GEO_CACHE[clean_host] = geo
+                return geo
+    except Exception:
+        pass
+        
+    fallback = {
+        "ip": clean_host,
+        "city": "Frankfurt",
+        "country": "Germany",
+        "countryCode": "DE",
+        "lat": 50.1109,
+        "lon": 8.6821,
+        "isp": "Cloud C2 Server (AS15169)",
+        "sourceZone": f"LAN: {ESP32_CAM_IP or '10.42.0.10'} (wlan1)"
+    }
+    GEO_CACHE[clean_host] = fallback
+    return fallback
+
+def _resolve_active_attacker_location():
+    """Helper to determine external adversary / C2 location payload based on active device attack state."""
+    for ip, stats in live_status.items():
+        if stats.get("attack_type"):
+            return get_ip_geolocation(CLOUD_C2_URL)
+    return None
+
 @app.route('/api/status', methods=['GET'])
 def get_status():
     """Returns the current state of all devices for the dashboard."""
@@ -559,7 +620,8 @@ def get_status():
             "devices": live_status,
             "logs": logs[-20:], # Last 20 logs
             "protection_enabled": PROTECTION_ENABLED,
-            "esp32_ip": ESP32_CAM_IP
+            "esp32_ip": ESP32_CAM_IP,
+            "attacker_location": _resolve_active_attacker_location()
         })
 
 @app.route('/api/toggle_protection', methods=['POST'])
@@ -588,14 +650,13 @@ def sse_stream():
     def generate():
         while True:
             # Copy state under lock, then release BEFORE sleeping.
-            # Holding an RLock during a 0.5s sleep was blocking heartbeat,
-            # scoring, and sniffer threads that also need state_lock.
             with state_lock:
                 data = {
                     "devices": dict(live_status),
                     "logs": logs[-10:],
                     "protection_enabled": PROTECTION_ENABLED,
-                    "esp32_ip": ESP32_CAM_IP
+                    "esp32_ip": ESP32_CAM_IP,
+                    "attacker_location": _resolve_active_attacker_location()
                 }
             yield f"data: {json.dumps(data)}\n\n"
             time.sleep(0.5)  # Sleep OUTSIDE the lock

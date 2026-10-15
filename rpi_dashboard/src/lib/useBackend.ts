@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 
 // Re-export shared types so other modules can import from here
-export type { NetworkNode, LogEntry, BackendHook } from './types';
-import type { NetworkNode, LogEntry } from './types';
+export type { NetworkNode, LogEntry, BackendHook, AttackerLocation } from './types';
+import type { NetworkNode, LogEntry, AttackerLocation } from './types';
 
 // --------------------------------------------------------
 // HELPER: Generate random position for new nodes
@@ -41,7 +41,9 @@ export function useBackend() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [protectionEnabled, setProtectionEnabled] = useState(true);
   const [activeAttack, setActiveAttack] = useState<'exfil' | 'recon' | 'flood' | null>(null);
+  const [attackerLocation, setAttackerLocation] = useState<AttackerLocation | null>(null);
   const [isToggling, setIsToggling] = useState(false);
+
 
   const nodesRef = useRef<NetworkNode[]>([]);
   const lastToggleTime = useRef<number>(0);
@@ -63,6 +65,9 @@ export function useBackend() {
         const resp = await fetch(`${API_BASE}/api/status`);
         const data = await resp.json();
         setProtectionEnabled(data.protection_enabled);
+        if (data.attacker_location) {
+          setAttackerLocation(data.attacker_location);
+        }
         
         // Convert devices object to nodes array, retaining active & quarantined devices
         const initialNodes: NetworkNode[] = Object.keys(data.devices)
@@ -87,7 +92,8 @@ export function useBackend() {
               trustScore: Math.max(0.05, 1.0 - (stats.threat_score / 150)),
               isUnderAttack: !!stats.attack_type || stats.threat_score > 50 || isBlocked,
               attackType: (stats.attack_type as 'exfil' | 'recon' | 'flood' | null) ?? null,
-              status: stats.status
+              status: stats.status,
+              attackerLocation: stats.attack_type ? data.attacker_location : null
             };
           });
         setNodes(initialNodes);
@@ -106,7 +112,16 @@ export function useBackend() {
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        const { devices, logs: serverLogs, protection_enabled, esp32_ip } = data;
+        const { devices, logs: serverLogs, protection_enabled, esp32_ip, attacker_location } = data;
+
+        if (attacker_location) {
+          setAttackerLocation(attacker_location);
+        } else {
+          const hasActiveAttack = Object.values(devices).some((d: any) => !!d.attack_type);
+          if (!hasActiveAttack) {
+            setAttackerLocation(null);
+          }
+        }
 
         // Prevent SSE from overwriting optimistic state if we just toggled
         if (Date.now() - lastToggleTime.current > 2000) {
@@ -140,7 +155,8 @@ export function useBackend() {
                 trustScore: Math.max(0.05, 1.0 - (stats.threat_score / 150)),
                 isUnderAttack: !!stats.attack_type || stats.threat_score > 50 || isBlocked,
                 attackType: (stats.attack_type as 'exfil' | 'recon' | 'flood' | null) ?? null,
-                status: stats.status
+                status: stats.status,
+                attackerLocation: stats.attack_type ? (attacker_location || updatedNodes[existingIdx].attackerLocation) : null
               };
             } else {
               // New device discovered!
@@ -156,7 +172,8 @@ export function useBackend() {
                 trustScore: Math.max(0.05, 1.0 - (stats.threat_score / 150)),
                 isUnderAttack: !!stats.attack_type || stats.threat_score > 50 || isBlocked,
                 attackType: (stats.attack_type as 'exfil' | 'recon' | 'flood' | null) ?? null,
-                status: stats.status
+                status: stats.status,
+                attackerLocation: stats.attack_type ? attacker_location : null
               });
             }
           });
@@ -233,6 +250,7 @@ export function useBackend() {
     protectionEnabled,
     toggleProtection,
     activeAttack,
+    attackerLocation,
     isToggling,
     isDemoMode: false,
     triggerExfil: () => sendCommand('start_exfil'),
