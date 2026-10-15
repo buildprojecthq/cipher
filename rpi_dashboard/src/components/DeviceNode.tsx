@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Float, Html } from '@react-three/drei';
 import * as THREE from 'three';
+import { type AttackerLocation, DEFAULT_C2_LOCATION } from '../lib/types';
 
 export type DeviceType = 'laptop' | 'phone' | 'tablet' | 'fridge' | 'camera';
 
@@ -11,18 +12,33 @@ interface DeviceNodeProps {
   label: string;
   trustScore: number;
   status?: string;
+  isUnderAttack?: boolean;
+  attackType?: string | null;
+  attackerLocation?: AttackerLocation | null;
   onSelect: (label: string) => void;
 }
 
-export const DeviceNode: React.FC<DeviceNodeProps> = ({ position, type, label, trustScore, status, onSelect }) => {
+export const DeviceNode: React.FC<DeviceNodeProps> = ({ 
+  position, 
+  type, 
+  label, 
+  trustScore, 
+  status, 
+  isUnderAttack = false,
+  attackType = 'exfil',
+  attackerLocation = null,
+  onSelect 
+}) => {
   const [hovered, setHovered] = useState(false);
   const meshRef = useRef<THREE.Group>(null);
   const isOffline = status === 'Offline';
-  const isBlocked = status?.includes('Blocked') || trustScore <= 0.15;
+  const isBlocked = status?.includes('Blocked') || status?.includes('Quarantined') || trustScore <= 0.15;
+  const isAttacked = isUnderAttack || isBlocked || (type === 'camera' && trustScore < 0.5);
+  const attackerLoc = attackerLocation || DEFAULT_C2_LOCATION;
 
   const getStatusColor = () => {
     if (isOffline) return "#222222";
-    if (isBlocked) return "#ef4444"; // Red for blocked/quarantined
+    if (isBlocked || isAttacked) return "#ef4444"; // Red for blocked/quarantined/attacked
     if (label.includes('Hacker') || label.includes('C2')) return "#ef4444"; // Red for attacker
     if (trustScore > 0.7) return "#ffffff"; // White
     if (trustScore > 0.4) return "#f59e0b"; // Amber for suspicious
@@ -126,8 +142,6 @@ export const DeviceNode: React.FC<DeviceNodeProps> = ({ position, type, label, t
           </group>
         );
       case 'phone':
-        // Redirecting phone to camera for ESP32-CAM consistency if needed, 
-        // but let's keep it separate for now and update useBackend instead.
         return (
           <group scale={1.0}>
             {renderOutline([0.18, 0.35, 0.03])}
@@ -188,29 +202,98 @@ export const DeviceNode: React.FC<DeviceNodeProps> = ({ position, type, label, t
           {renderModel()}
         </group>
 
-        {/* Mobile HTML tap badge button */}
-        <Html position={[0, 0.8, 0]} center zIndexRange={[100, 0]}>
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect(label);
-            }}
-            className={`md:hidden bg-black/90 backdrop-blur-md text-white border ${isBlocked ? 'border-red-500 text-red-400 shadow-[4px_4px_0px_#ef4444]' : 'border-white/20 shadow-[4px_4px_0px_white]'} px-3 py-1.5 font-black uppercase tracking-widest text-[9px] whitespace-nowrap pointer-events-auto select-none active:scale-95 transition-transform flex items-center gap-1.5`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${isBlocked ? 'bg-red-500 animate-ping' : 'bg-white animate-pulse'}`} />
-            {label} {isBlocked ? ' [BLOCKED]' : ''}
-          </button>
-        </Html>
+        {/* Top Balloon UI for Attacked Device showing C2 Geolocation details */}
+        {isAttacked ? (
+          <Html position={[0, 1.45, 0]} center zIndexRange={[100, 0]}>
+            <div className="flex flex-col items-center pointer-events-auto select-none transform -translate-y-2">
+              {/* Balloon Box */}
+              <div 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelect(label);
+                }}
+                className="cursor-pointer bg-black/95 border-2 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.6),6px_6px_0px_#ef4444] backdrop-blur-md px-3.5 py-2 font-mono text-left min-w-[240px] max-w-[280px] transition-transform active:scale-95"
+              >
+                {/* Balloon Header */}
+                <div className="flex items-center justify-between gap-2 border-b border-red-500/40 pb-1 mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping shrink-0" />
+                    <span className="text-[9.5px] font-black uppercase text-red-400 tracking-wider">
+                      ATTACKER LOCATION
+                    </span>
+                  </div>
+                  <span className="text-[7.5px] bg-red-500/25 text-red-300 border border-red-500/50 px-1 py-0.2 uppercase font-bold tracking-wider">
+                    {attackType?.toUpperCase() || 'EXFIL'}
+                  </span>
+                </div>
 
-        {/* Desktop Hover Label */}
-        {hovered && (
-          <Html position={[0, 1, 0]} center>
-            <div className={`hidden md:flex items-center gap-2 bg-black/90 backdrop-blur-md text-white border ${isBlocked ? 'border-red-500 shadow-[8px_8px_0px_#ef4444]' : 'border-white/20 shadow-[8px_8px_0px_white]'} px-4 py-2 font-black uppercase tracking-widest text-[11px] whitespace-nowrap pointer-events-none select-none`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isBlocked ? 'bg-red-500 animate-ping' : 'bg-white'}`} />
-              <span>{label}</span>
-              {isBlocked && <span className="text-[9px] text-red-400 font-mono font-bold ml-1">[QUARANTINED]</span>}
+                {/* Balloon Details Grid */}
+                <div className="space-y-1 text-[8.5px] leading-tight font-mono">
+                  <div className="flex justify-between items-baseline gap-2">
+                    <span className="text-white/40 uppercase text-[7.5px] tracking-wider">Adversary C2:</span>
+                    <span className="text-white font-bold tracking-tight text-right">
+                      {attackerLoc.city}, {attackerLoc.countryCode}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-baseline gap-2">
+                    <span className="text-white/40 uppercase text-[7.5px] tracking-wider">WAN IP:</span>
+                    <span className="text-red-400 font-bold tracking-tight text-right">
+                      {attackerLoc.ip}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-baseline gap-2">
+                    <span className="text-white/40 uppercase text-[7.5px] tracking-wider">Coordinates:</span>
+                    <span className="text-white/80 text-[7.5px] text-right">
+                      {attackerLoc.lat ? `${attackerLoc.lat.toFixed(2)}°N, ${attackerLoc.lon.toFixed(2)}°E` : '45.59°N, -121.18°W'}
+                    </span>
+                  </div>
+
+                  {attackerLoc.isp && (
+                    <div className="flex justify-between items-baseline gap-2 border-t border-white/10 pt-1 mt-1">
+                      <span className="text-white/40 uppercase text-[7px] tracking-wider">Host:</span>
+                      <span className="text-white/60 text-[7px] truncate max-w-[145px] text-right">
+                        {attackerLoc.isp}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Balloon Downward Pointer Stem */}
+              <div className="flex flex-col items-center">
+                <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[7px] border-t-red-500 -mt-[1px]" />
+                <div className="w-[1.5px] h-3.5 bg-red-500 shadow-[0_0_8px_#ef4444]" />
+              </div>
             </div>
           </Html>
+        ) : (
+          <>
+            {/* Mobile HTML tap badge button */}
+            <Html position={[0, 0.8, 0]} center zIndexRange={[100, 0]}>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelect(label);
+                }}
+                className="md:hidden bg-black/90 backdrop-blur-md text-white border border-white/20 shadow-[4px_4px_0px_white] px-3 py-1.5 font-black uppercase tracking-widest text-[9px] whitespace-nowrap pointer-events-auto select-none active:scale-95 transition-transform flex items-center gap-1.5"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                {label}
+              </button>
+            </Html>
+
+            {/* Desktop Hover Label */}
+            {hovered && (
+              <Html position={[0, 1, 0]} center>
+                <div className="hidden md:flex items-center gap-2 bg-black/90 backdrop-blur-md text-white border border-white/20 shadow-[8px_8px_0px_white] px-4 py-2 font-black uppercase tracking-widest text-[11px] whitespace-nowrap pointer-events-none select-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                  <span>{label}</span>
+                </div>
+              </Html>
+            )}
+          </>
         )}
       </group>
     </Float>

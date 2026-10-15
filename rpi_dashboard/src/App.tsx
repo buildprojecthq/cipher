@@ -155,7 +155,7 @@ export default function App() {
             <pointLight position={[-10, 5, -10]} intensity={0.5} color={'#ffffff'} />
             <Suspense fallback={null}>
               <group ref={groupRef}>
-                <Globe targetLocation={effectiveAttackerLocation} />
+                <Globe />
                 {attackerNode && <ThreatSignal position={attackerNode.pos} active={isUnderAttack} />}
                 {attackerNode && <AttackParticles from={attackerNode.pos} active={isUnderAttack && protectionEnabled} attackType={activeAttackType} />}
                 <PacketFlow active={!protectionEnabled} />
@@ -165,7 +165,17 @@ export default function App() {
                     return (
                       <React.Fragment key={node.id}>
                         <NetworkLine start={node.anchor.clone().multiplyScalar(1.02)} end={node.pos} color={nodeColor} />
-                        <DeviceNode position={node.pos} type={node.type} label={node.label} trustScore={node.trustScore} status={node.status} onSelect={setSelectedNode} />
+                        <DeviceNode 
+                          position={node.pos} 
+                          type={node.type} 
+                          label={node.label} 
+                          trustScore={node.trustScore} 
+                          status={node.status} 
+                          isUnderAttack={node.isUnderAttack || (isUnderAttack && (node.type === 'camera' || node.label.includes('ESP32')))}
+                          attackType={node.attackType || activeAttackType}
+                          attackerLocation={node.attackerLocation || effectiveAttackerLocation}
+                          onSelect={setSelectedNode} 
+                        />
                       </React.Fragment>
                     );
                   })}
@@ -194,36 +204,6 @@ export default function App() {
                 <span>{alertTier === 'critical' ? 'CRITICAL' : 'WARNING'} — {activeAttackType?.toUpperCase() || 'ACTIVE THREAT'} DETECTED</span>
               ) : protectionEnabled ? "NETWORK NOMINAL — ALL SECURE" : "WARNING — GATEWAY DISABLED"}
             </div>
-
-            {/* Attacker Location Telemetry Sub-Badge (External Adversary / C2) */}
-            <AnimatePresence>
-              {isUnderAttack && effectiveAttackerLocation && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute left-1/2 -translate-x-1/2 top-48 md:top-20 z-50 flex items-center gap-2 px-3.5 py-1.5 bg-black/90 backdrop-blur-md border border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.3)] font-mono text-[8px] md:text-[10px] tracking-wider uppercase whitespace-nowrap pointer-events-auto"
-                >
-                  <MapPin size={11} className="text-red-400 shrink-0 animate-pulse" />
-                  <span className="text-red-400 font-black">ATTACKER LOCATION:</span>
-                  <span className="text-white font-bold tracking-tight">
-                    {effectiveAttackerLocation.city}, {effectiveAttackerLocation.country}
-                  </span>
-                  <span className="text-red-400/90 font-mono text-[8px]">
-                    ({effectiveAttackerLocation.lat.toFixed(2)}°N, {effectiveAttackerLocation.lon.toFixed(2)}°E)
-                  </span>
-                  <span className="hidden sm:inline text-white/50 border-l border-white/20 pl-2 text-[8px]">
-                    IP: {effectiveAttackerLocation.ip}
-                  </span>
-                  {effectiveAttackerLocation.isp && (
-                    <span className="hidden md:inline text-white/35 border-l border-white/20 pl-2 text-[8px]">
-                      {effectiveAttackerLocation.isp}
-                    </span>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {/* Controls */}
             <div className="flex gap-2 pointer-events-auto z-50 flex-wrap">
