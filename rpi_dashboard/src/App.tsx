@@ -197,12 +197,21 @@ export default function App() {
               </div>
             </div>
 
-            {/* Status Badge */}
-            <div className={cn("absolute left-1/2 -translate-x-1/2 top-36 md:top-8 px-3 py-1.5 md:px-4 md:py-2 border font-mono text-[8px] md:text-[10px] whitespace-nowrap uppercase tracking-widest flex items-center gap-2 transition-colors duration-500 z-50", currentAlert.border, currentAlert.text, currentAlert.bg, currentAlert.shadow)}>
-              <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", currentAlert.dot)} />
-              {isUnderAttack ? (
-                <span>{alertTier === 'critical' ? 'CRITICAL' : 'WARNING'} — {activeAttackType?.toUpperCase() || 'ACTIVE THREAT'} DETECTED</span>
-              ) : protectionEnabled ? "NETWORK NOMINAL — ALL SECURE" : "WARNING — GATEWAY DISABLED"}
+            {/* Status Badge & Attacker Origin Pill */}
+            <div className="absolute left-1/2 -translate-x-1/2 top-36 md:top-8 flex flex-col items-center gap-1.5 z-50">
+              <div className={cn("px-3 py-1.5 md:px-4 md:py-2 border font-mono text-[8px] md:text-[10px] whitespace-nowrap uppercase tracking-widest flex items-center gap-2 transition-colors duration-500", currentAlert.border, currentAlert.text, currentAlert.bg, currentAlert.shadow)}>
+                <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", currentAlert.dot)} />
+                {isUnderAttack ? (
+                  <span>{alertTier === 'critical' ? 'CRITICAL' : 'WARNING'} — {activeAttackType?.toUpperCase() || 'ACTIVE THREAT'} DETECTED</span>
+                ) : protectionEnabled ? "NETWORK NOMINAL — ALL SECURE" : "WARNING — GATEWAY DISABLED"}
+              </div>
+
+              {isUnderAttack && effectiveAttackerLocation && (
+                <div className="px-3 py-1 bg-black/95 border border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5),3px_3px_0px_#ef4444] font-mono text-[7.5px] md:text-[8.5px] text-red-400 uppercase tracking-wider flex items-center gap-2 whitespace-nowrap">
+                  <MapPin size={10} className="text-red-500 animate-pulse shrink-0" />
+                  <span>ATTACKER ORIGIN: <strong className="text-white font-black">{effectiveAttackerLocation.city}, {effectiveAttackerLocation.countryCode}</strong> · WAN IP: <strong className="text-white font-black">{effectiveAttackerLocation.ip}</strong></span>
+                </div>
+              )}
             </div>
 
             {/* Controls */}
@@ -247,12 +256,22 @@ export default function App() {
                           </div>
                           <div className="w-full bg-white/10 h-[2px]"><motion.div animate={{ width: `${Math.min(score / 150, 1) * 100}%` }} transition={{ duration: 0.3 }} className={cn("h-full", isBlocked ? "bg-red-500" : level.bar)} /></div>
                           <div className="flex justify-between text-[8px] font-mono font-bold uppercase tracking-tighter"><span className="opacity-60 text-white/70">{node.ip}</span><span className="opacity-40">Score: {score}/150</span></div>
-                          {node.isUnderAttack && attackerLocation && (
-                            <div className="flex items-center justify-between text-[7px] font-mono text-red-400 bg-red-500/10 px-1.5 py-0.5 border border-red-500/30">
-                              <span className="flex items-center gap-1 font-bold">
-                                <MapPin size={7} /> TARGET: {attackerLocation.city}, {attackerLocation.countryCode}
-                              </span>
-                              <span className="opacity-75">{attackerLocation.ip}</span>
+                          {(node.isUnderAttack || isBlocked || (isUnderAttack && (node.type === 'camera' || node.label.includes('ESP32')))) && (
+                            <div className="flex flex-col gap-0.5 text-[7.5px] font-mono text-red-400 bg-red-500/10 p-2 border border-red-500/50 mt-1 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                              <div className="flex items-center justify-between font-bold border-b border-red-500/30 pb-1 mb-0.5">
+                                <span className="flex items-center gap-1 text-red-300">
+                                  <MapPin size={9} className="animate-pulse text-red-500" /> ADVERSARY C2 ORIGIN
+                                </span>
+                                <span className="text-white font-bold">{effectiveAttackerLocation?.ip || '35.212.229.239'}</span>
+                              </div>
+                              <div className="flex justify-between text-white/80">
+                                <span className="text-white/40">LOCATION:</span>
+                                <span className="font-bold text-white">{effectiveAttackerLocation?.city || 'The Dalles'}, {effectiveAttackerLocation?.countryCode || 'US'}</span>
+                              </div>
+                              <div className="flex justify-between text-white/60 text-[7px]">
+                                <span className="text-white/40">COORDINATES:</span>
+                                <span>{effectiveAttackerLocation?.lat ? `${effectiveAttackerLocation.lat.toFixed(2)}°N, ${effectiveAttackerLocation.lon.toFixed(2)}°E` : '45.59°N, -121.18°W'}</span>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -361,9 +380,9 @@ export default function App() {
               )}>
                 Gateway: {isUnderAttack ? "BREACH DETECTED" : (protectionEnabled ? "Secure" : "Exposed")}
               </span>
-              {isUnderAttack && attackerLocation && (
+              {isUnderAttack && effectiveAttackerLocation && (
                 <span className="text-red-400/90 text-[8px] flex items-center gap-1 font-bold">
-                  <MapPin size={8} /> Attacker Location: {attackerLocation.city}, {attackerLocation.country} ({attackerLocation.ip})
+                  <MapPin size={8} className="animate-pulse text-red-500" /> Attacker Location: {effectiveAttackerLocation.city}, {effectiveAttackerLocation.country} ({effectiveAttackerLocation.ip})
                 </span>
               )}
             </div>

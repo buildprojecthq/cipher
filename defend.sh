@@ -67,10 +67,10 @@ if ! sudo iptables -t nat -C POSTROUTING -o "$UPSTREAM_IFACE" -j MASQUERADE 2>/d
     sudo iptables -t nat -A POSTROUTING -o "$UPSTREAM_IFACE" -j MASQUERADE
 fi
 
-# 2. Build Dashboard if dist is missing
+# 2. Build Dashboard if dist is missing or rebuild requested
 # Running as current user to preserve Node/NVM environment
-if [ ! -d "rpi_dashboard/dist" ]; then
-    echo "[*] RPi Dashboard build not found. Building now..."
+if [ ! -d "rpi_dashboard/dist" ] || [ "$1" = "--rebuild" ] || [ "$1" = "rebuild" ]; then
+    echo "[*] Building RPi Dashboard..."
     echo "[*] Increasing Node memory limit for Raspberry Pi..."
     cd rpi_dashboard && npm install && NODE_OPTIONS="--max-old-space-size=1024" npm run build
     

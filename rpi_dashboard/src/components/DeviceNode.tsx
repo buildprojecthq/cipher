@@ -204,21 +204,21 @@ export const DeviceNode: React.FC<DeviceNodeProps> = ({
 
         {/* Top Balloon UI for Attacked Device showing C2 Geolocation details */}
         {isAttacked ? (
-          <Html position={[0, 1.45, 0]} center zIndexRange={[100, 0]}>
-            <div className="flex flex-col items-center pointer-events-auto select-none transform -translate-y-2">
+          <Html position={[0, 1.45, 0]} center distanceFactor={8}>
+            <div className="flex flex-col items-center pointer-events-auto select-none">
               {/* Balloon Box */}
               <div 
                 onClick={(e) => {
                   e.stopPropagation();
                   onSelect(label);
                 }}
-                className="cursor-pointer bg-black/95 border-2 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.6),6px_6px_0px_#ef4444] backdrop-blur-md px-3.5 py-2 font-mono text-left min-w-[240px] max-w-[280px] transition-transform active:scale-95"
+                className="cursor-pointer bg-black/95 border-2 border-red-500 shadow-[0_0_25px_rgba(239,68,68,0.7),4px_4px_0px_#ef4444] backdrop-blur-md px-3 py-2 font-mono text-left min-w-[210px] max-w-[260px] transition-transform active:scale-95"
               >
                 {/* Balloon Header */}
                 <div className="flex items-center justify-between gap-2 border-b border-red-500/40 pb-1 mb-1.5">
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-red-500 animate-ping shrink-0" />
-                    <span className="text-[9.5px] font-black uppercase text-red-400 tracking-wider">
+                    <span className="text-[9px] font-black uppercase text-red-400 tracking-wider">
                       ATTACKER LOCATION
                     </span>
                   </div>
@@ -228,32 +228,32 @@ export const DeviceNode: React.FC<DeviceNodeProps> = ({
                 </div>
 
                 {/* Balloon Details Grid */}
-                <div className="space-y-1 text-[8.5px] leading-tight font-mono">
+                <div className="space-y-1 text-[8px] leading-tight font-mono">
                   <div className="flex justify-between items-baseline gap-2">
-                    <span className="text-white/40 uppercase text-[7.5px] tracking-wider">Adversary C2:</span>
+                    <span className="text-white/40 uppercase text-[7px] tracking-wider">Adversary C2:</span>
                     <span className="text-white font-bold tracking-tight text-right">
                       {attackerLoc.city}, {attackerLoc.countryCode}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-baseline gap-2">
-                    <span className="text-white/40 uppercase text-[7.5px] tracking-wider">WAN IP:</span>
+                    <span className="text-white/40 uppercase text-[7px] tracking-wider">WAN IP:</span>
                     <span className="text-red-400 font-bold tracking-tight text-right">
                       {attackerLoc.ip}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-baseline gap-2">
-                    <span className="text-white/40 uppercase text-[7.5px] tracking-wider">Coordinates:</span>
-                    <span className="text-white/80 text-[7.5px] text-right">
+                    <span className="text-white/40 uppercase text-[7px] tracking-wider">Coordinates:</span>
+                    <span className="text-white/80 text-[7px] text-right">
                       {attackerLoc.lat ? `${attackerLoc.lat.toFixed(2)}°N, ${attackerLoc.lon.toFixed(2)}°E` : '45.59°N, -121.18°W'}
                     </span>
                   </div>
 
                   {attackerLoc.isp && (
                     <div className="flex justify-between items-baseline gap-2 border-t border-white/10 pt-1 mt-1">
-                      <span className="text-white/40 uppercase text-[7px] tracking-wider">Host:</span>
-                      <span className="text-white/60 text-[7px] truncate max-w-[145px] text-right">
+                      <span className="text-white/40 uppercase text-[6.5px] tracking-wider">Host:</span>
+                      <span className="text-white/60 text-[6.5px] truncate max-w-[130px] text-right">
                         {attackerLoc.isp}
                       </span>
                     </div>
@@ -263,7 +263,7 @@ export const DeviceNode: React.FC<DeviceNodeProps> = ({
 
               {/* Balloon Downward Pointer Stem */}
               <div className="flex flex-col items-center">
-                <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[7px] border-t-red-500 -mt-[1px]" />
+                <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-red-500 -mt-[1px]" />
                 <div className="w-[1.5px] h-3.5 bg-red-500 shadow-[0_0_8px_#ef4444]" />
               </div>
             </div>
