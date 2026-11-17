@@ -4,6 +4,7 @@
 [![Hardware: Raspberry Pi](https://img.shields.io/badge/Hardware-Raspberry_Pi-A22846?logo=raspberry-pi)](https://www.raspberrypi.org/)
 [![Hardware: ESP32](https://img.shields.io/badge/Hardware-ESP32-E7352C?logo=espressif)](https://www.espressif.com/en/products/socs/esp32)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-cipher--demo.netlify.app-00C7B7?logo=netlify&logoColor=white)](https://cipher-demo.netlify.app/)
+[![Project Showcase](https://img.shields.io/badge/Showcase-buildproject.in-2563EB)](https://buildproject.in/projects/cipher/)
 
 **Cipher** is a live, end-to-end IoT security demonstration platform. It demonstrates how a low-cost edge gateway (Raspberry Pi) can detect, score, and mitigate malicious IoT behavior in real-time without relying on cloud-based AI.
 
@@ -105,6 +106,11 @@ Flash the firmware to your ESP32-CAM using Arduino IDE:
 - **Frontend:** React 19, Three.js, Framer Motion, Tailwind CSS 4
 - **Backend:** Node.js (C2), Python/Scapy (Gateway)
 - **Firmware:** C++ (Arduino)
+
+---
+
+> 💡 **Project Showcase & Documentation:**  
+> Detailed threat model analysis, packet sniffer schematics, hardware BOM calculator, and examiner viva defense notes for this project are available on **[buildproject.in/projects/cipher](https://buildproject.in/projects/cipher/)**.
 
 ---
 
